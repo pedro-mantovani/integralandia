@@ -99,13 +99,14 @@
   <script>
     // === FIREBASE CONFIGURAÇÃO ===
     const firebaseConfig = {
-      apiKey: "SEU_API_KEY",
-      authDomain: "SEU_AUTH_DOMAIN",
-      projectId: "SEU_PROJECT_ID",
-      storageBucket: "SEU_STORAGE_BUCKET",
-      messagingSenderId: "SEU_SENDER_ID",
-      appId: "SEU_APP_ID"
-    };
+        apiKey: "AIzaSyDxxqhTGghjK4XA8BqD2FiG6WCKkaasumM",
+        authDomain: "integralandia.firebaseapp.com",
+        projectId: "integralandia",
+        storageBucket: "integralandia.firebasestorage.app",
+        messagingSenderId: "851828038206",
+        appId: "1:851828038206:web:b6414df3e9cc70d0cb4f6f"
+        };
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
   </script>
@@ -158,16 +159,54 @@
 
     // === BLOCO DE INTEGRAIS (edite aqui!) ===
     const integralsList = [
-      { q: '∫ x^0 dx', a: 'x' },
-      { q: '∫ x^1 dx', a: 'x^2/2' },
-      { q: '∫ x^2 dx', a: 'x^3/3' },
-      { q: '∫ x^3 dx', a: 'x^4/4' },
-      { q: '∫ x^4 dx', a: 'x^5/5' },
-      { q: '∫ x^5 dx', a: 'x^6/6' },
-      { q: '∫ sen(x) dx', a: '-cos(x)' },
-      { q: '∫ cos(x) dx', a: 'sen(x)' },
-      { q: '∫ tg(x) dx', a: '-ln(cos(x))' },
-      { q: '∫ e^x dx', a: 'e^x' }
+        // Polinômios
+        { q: '∫ x^n dx (n ≠ -1)', a: 'x^(n+1)/(n+1)' },
+        { q: '∫ 1 dx', a: 'x' },
+        { q: '∫ x dx', a: 'x^2/2' },
+        { q: '∫ x^2 dx', a: 'x^3/3' },
+        { q: '∫ x^3 dx', a: 'x^4/4' },
+        { q: '∫ x^4 dx', a: 'x^5/5' },
+        { q: '∫ x^5 dx', a: 'x^6/6' },
+
+        // Exponenciais
+        { q: '∫ e^x dx', a: 'e^x' },
+        { q: '∫ a^x dx', a: 'a^x/ln(a)' },
+
+        // Logaritmos
+        { q: '∫ 1/x dx', a: 'ln|x|' },
+
+        // Trigonométricas
+        { q: '∫ sen(x) dx', a: '-cos(x)' },
+        { q: '∫ cos(x) dx', a: 'sen(x)' },
+        { q: '∫ tg(x) dx', a: '-ln|cos(x)|' },
+        { q: '∫ cotg(x) dx', a: 'ln|sen(x)|' },
+        { q: '∫ sec(x) dx', a: 'ln|sec(x)+tg(x)|' },
+        { q: '∫ cossec(x) dx', a: '-ln|cossec(x)+cotg(x)|' },
+
+        // Trigonométricas ao quadrado
+        { q: '∫ sen^2(x) dx', a: '(x/2) - (sen(2x)/4)' },
+        { q: '∫ cos^2(x) dx', a: '(x/2) + (sen(2x)/4)' },
+
+        // Produtos trigonométricos usuais
+        { q: '∫ sen(x)cos(x) dx', a: 'sen^2(x)/2' },
+        { q: '∫ sen^2(x)cos(x) dx', a: 'sen^3(x)/3' },
+        { q: '∫ cos^2(x)sen(x) dx', a: '-cos^3(x)/3' },
+
+        // Inversas trigonométricas
+        { q: '∫ 1/sqrt(1-x^2) dx', a: 'arcsen(x)' },
+        { q: '∫ -1/sqrt(1-x^2) dx', a: 'arccos(x)' },
+        { q: '∫ 1/(1+x^2) dx', a: 'arctg(x)' },
+        { q: '∫ -1/(1+x^2) dx', a: 'arccotg(x)' },
+        { q: '∫ 1/|x|sqrt(x^2-1) dx', a: 'arcsec(x)' },
+        { q: '∫ -1/|x|sqrt(x^2-1) dx', a: 'arccossec(x)' },
+
+        // Hiperbólicas
+        { q: '∫ senh(x) dx', a: 'cosh(x)' },
+        { q: '∫ cosh(x) dx', a: 'senh(x)' },
+        { q: '∫ tgh(x) dx', a: 'ln(cosh(x))' },
+        { q: '∫ coth(x) dx', a: 'ln|senh(x)|' },
+        { q: '∫ sech(x) dx', a: 'arctg(senh(x))' },
+        { q: '∫ cosseh(x) dx', a: 'arctg(cosh(x))' }
     ];
 
     function initPool() {
@@ -221,6 +260,15 @@
       }
     }
 
+    async function getPlayerRank() {
+        const higherScores = await db.collection('scores')
+            .where('score', '>', score)
+            .get();
+
+        const rank = higherScores.size + 1;
+        alert(`Sua posição no ranking global é: ${rank}`);
+    }
+
     async function showRanking() {
       try {
         const snapshot = await db
@@ -248,6 +296,7 @@
       document.getElementById('finalScore').innerText = score;
       switchScreen('game','result');
       saveScore();
+      getPlayerRank();
     }
 
     document.getElementById('startBtn').onclick = () => {
