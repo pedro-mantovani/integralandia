@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Jogo de Integrais Imediatas</title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,500&display=swap" rel="stylesheet"/>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --fg: #333;
+      --primary: #007bff;
+      --secondary: #6c757d;
+      --danger: #dc3545;
+      --input-bg: #fff;
+      --input-border: #ccc;
+      --btn-hover: rgba(0,123,255,0.8);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121212;
+        --fg: #e0e0e0;
+        --primary: #0d6efd;
+        --secondary: #adb5bd;
+        --danger: #f03e3e;
+        --input-bg: #1e1e1e;
+        --input-border: #444;
+        --btn-hover: rgba(13,110,253,0.8);
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      font-family: 'Roboto', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      overflow: hidden;
+    }
+    .screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .screen.active { display: flex; }
+    h2 { color: var(--primary); margin-bottom: 16px; }
+    #timer { font-size: 2.5rem; color: var(--danger); }
+    #score { font-size: 2rem; }
+    #question { font-size: 1.4rem; margin: 24px 0 12px; }
+    #feedback {
+      margin-top: 12px;
+      font-style: italic;
+      color: var(--secondary);
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+    #feedback.show { opacity: 1; }
+    input, button {
+      font-size: 1rem;
+      border-radius: 4px;
+    }
+    input {
+      width: 100%;
+      max-width: 400px;
+      padding: 10px;
+      margin-bottom: 12px;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      color: var(--fg);
+    }
+    button {
+      padding: 10px 16px;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-right: 8px;
+    }
+    button:hover { background: var(--btn-hover); }
+    button.secondary { background: var(--secondary); }
+    table {
+      width: 90%; max-width: 500px;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid var(--input-border);
+      padding: 8px;
+      text-align: center;
+    }
+  </style>
+  <script>
+    // === FIREBASE CONFIGURAÇÃO ===
+    const firebaseConfig = {
+      apiKey: "SEU_API_KEY",
+      authDomain: "SEU_AUTH_DOMAIN",
+      projectId: "SEU_PROJECT_ID",
+      storageBucket: "SEU_STORAGE_BUCKET",
+      messagingSenderId: "SEU_SENDER_ID",
+      appId: "SEU_APP_ID"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  </script>
+</head>
+<body>
+  <!-- LOGIN -->
+  <div id="login" class="screen active">
+    <h2>Informe seu nome de usuário</h2>
+    <input type="text" id="username" placeholder="Seu nome" />
+    <button id="startBtn">Iniciar Jogo</button>
+  </div>
+
+  <!-- JOGO -->
+  <div id="game" class="screen">
+    <div style="display:flex; gap:40px; align-items:center;">
+      <div>Tempo: <span id="timer">60</span>s</div>
+      <div>Pontos: <span id="score">0</span></div>
+    </div>
+    <div id="question"></div>
+    <div id="feedback"></div>
+    <form id="answerForm" style="width:100%; max-width:500px;">
+      <input type="text" id="answer" placeholder="Digite a primitiva" autocomplete="off" required />
+      <div style="margin-top:12px;">
+        <button type="submit">Enviar</button>
+        <button type="button" id="skipBtn" class="secondary">Pular</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- RESULTADO -->
+  <div id="result" class="screen">
+    <h2>Tempo Esgotado!</h2>
+    <p>Sua pontuação: <span id="finalScore"></span></p>
+    <button id="showRanking">Ver Ranking</button>
+  </div>
+
+  <!-- RANKING -->
+  <div id="ranking" class="screen">
+    <h2>Ranking de Pontuações</h2>
+    <table>
+      <thead><tr><th>Usuário</th><th>Pontos</th></tr></thead>
+      <tbody id="rankingBody"></tbody>
+    </table>
+    <button id="playAgain">Jogar Novamente</button>
+  </div>
+
+  <script>
+    let username, score, timeLeft, timerInterval, currentAnswer;
+    let questionsPool = [];
+
+    // === BLOCO DE INTEGRAIS (edite aqui!) ===
+    const integralsList = [
+      { q: '∫ x^0 dx', a: 'x' },
+      { q: '∫ x^1 dx', a: 'x^2/2' },
+      { q: '∫ x^2 dx', a: 'x^3/3' },
+      { q: '∫ x^3 dx', a: 'x^4/4' },
+      { q: '∫ x^4 dx', a: 'x^5/5' },
+      { q: '∫ x^5 dx', a: 'x^6/6' },
+      { q: '∫ sen(x) dx', a: '-cos(x)' },
+      { q: '∫ cos(x) dx', a: 'sen(x)' },
+      { q: '∫ tg(x) dx', a: '-ln(cos(x))' },
+      { q: '∫ e^x dx', a: 'e^x' }
+    ];
+
+    function initPool() {
+      questionsPool = integralsList.slice(); // clona o array original
+    }
+
+    function normalize(str) {
+      return str.toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(/\*/g, '')
+        .replace(/tg/g, 'tan')
+        .replace(/sen/g, 'sin')
+        .replace(/[()]/g, '');
+    }
+
+    function nextQuestion() {
+      if (!questionsPool.length) initPool();
+      const idx = Math.floor(Math.random() * questionsPool.length);
+      const obj = questionsPool.splice(idx, 1)[0];
+      currentAnswer = obj.a;
+      document.getElementById('question').innerText = obj.q;
+      document.getElementById('answer').value = '';
+      document.getElementById('feedback').classList.remove('show');
+      document.getElementById('answer').focus();
+    }
+
+    function startTimer() {
+      timeLeft = 60;
+      document.getElementById('timer').innerText = timeLeft;
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer').innerText = timeLeft;
+        if (timeLeft <= 0) endGame();
+      }, 1000);
+    }
+
+    function switchScreen(hideId, showId) {
+      document.getElementById(hideId).classList.remove('active');
+      document.getElementById(showId).classList.add('active');
+    }
+
+    async function saveScore() {
+      try {
+        await db.collection('scores').add({
+          user: username,
+          score: score,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (e) {
+        console.error('Erro ao salvar score:', e);
+      }
+    }
+
+    async function showRanking() {
+      try {
+        const snapshot = await db
+          .collection('scores')
+          .orderBy('score', 'desc')
+          .limit(10)
+          .get();
+        const tbody = document.getElementById('rankingBody');
+        tbody.innerHTML = '';
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          tbody.insertAdjacentHTML(
+            'beforeend',
+            `<tr><td>${data.user}</td><td>${data.score}</td></tr>`
+          );
+        });
+        switchScreen('result','ranking');
+      } catch (e) {
+        console.error('Erro ao buscar ranking:', e);
+      }
+    }
+
+    function endGame() {
+      clearInterval(timerInterval);
+      document.getElementById('finalScore').innerText = score;
+      switchScreen('game','result');
+      saveScore();
+    }
+
+    document.getElementById('startBtn').onclick = () => {
+      username = document.getElementById('username').value.trim() || 'Anônimo';
+      score = 0;
+      document.getElementById('score').innerText = score;
+      initPool();
+      nextQuestion();
+      startTimer();
+      switchScreen('login','game');
+    };
+
+    document.getElementById('answerForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const ans = normalize(document.getElementById('answer').value);
+      if (ans === normalize(currentAnswer)) {
+        score++;
+        document.getElementById('score').innerText = score;
+        nextQuestion();
+      }
+    });
+
+    document.getElementById('skipBtn').onclick = () => {
+      const fb = document.getElementById('feedback');
+      fb.innerText = `Resposta certa: ${currentAnswer}`;
+      fb.classList.add('show');
+      setTimeout(nextQuestion, 1200);
+    };
+
+    document.getElementById('showRanking').onclick = showRanking;
+    document.getElementById('playAgain').onclick = () => {
+      document.getElementById('username').value = '';
+      switchScreen('ranking','login');
+    };
+  </script>
+</body>
+</html>
