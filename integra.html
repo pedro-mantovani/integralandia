@@ -98,7 +98,6 @@
       text-align: center;
     }
 
-    /* NOVOS ESTILOS - Ajuda / Pausa */
     .controls {
       display:flex;
       gap:12px;
@@ -117,6 +116,7 @@
     }
     .overlay.show { display: flex; }
     .modal {
+      background-color: red;
       width: 100%;
       max-width: 720px;
       background: var(--input-bg);
@@ -209,6 +209,38 @@
       <tbody id="rankingBody"></tbody>
     </table>
     <button id="playAgain">Jogar Novamente</button>
+  </div>
+  <style>
+    #memesSidebar {
+      position: absolute;
+      top: 50%;                
+      right: 100px;                  
+      transform: translateY(-50%);
+      width: 320px;              
+      max-height: 80%;           
+      overflow-y: auto;
+      padding: 12px;
+      background: var(--input-bg);
+      border-left: 2px solid var(--input-border);
+      box-shadow: -2px 0 6px rgba(0,0,0,0.15);
+      border-radius: 8px 0 0 8px; 
+    }
+    #memesSidebar h4 { margin-bottom: 8px; color: var(--primary); }
+    #memesList { font-size: 0.9rem; }
+    #memesList .memeItem { border-bottom: 1px dashed var(--input-border); padding: 6px 0; }
+    #memesList .memeItem:last-child { border-bottom: none; }
+    @media (max-width:900px){
+      #memesSidebar { position: static; width: calc(100% - 40px); margin: 12px auto 0; }
+    }
+  </style>
+
+  <div id="memesSidebar" aria-live="polite" style="display:none;">
+    <h2>Pontuações inusitadas</h2>
+    <p>Essa página é dedicada para memes e coisas engraçadas que surgiriam por uma falha de segurança do programa, achei tão divertido que decidi manter (por favor, não me façam tirar isso.)</p> 
+    <p><strong>Proibido coisas +18 e propagandas</strong></p>
+    <div id="memesList"></div>
+    <div style="margin-top:8px; text-align:right;">
+    </div>
   </div>
 
   <!-- OVERLAY AJUDA -->
@@ -355,26 +387,129 @@
     }
 
     async function showRanking() {
-      try {
-        const snapshot = await db
-          .collection('scores')
-          .orderBy('score', 'desc')
-          .limit(10)
-          .get();
-        const tbody = document.getElementById('rankingBody');
-        tbody.innerHTML = '';
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          tbody.insertAdjacentHTML(
-            'beforeend',
-            `<tr><td>${data.user}</td><td>${data.score}</td></tr>`
+    try {
+      const memesSidebar = document.getElementById('memesSidebar');
+      const memesList = document.getElementById('memesList');
+      
+      // 1. Oculta a barra de memes no início
+      memesSidebar.style.display = 'none';
+      memesList.innerHTML = '';
+
+      const snapshot = await db.collection('scores').orderBy('createdAt', 'desc').get();
+      const all = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        all.push({
+          id: doc.id,
+          user: data.user || 'Anônimo',
+          rawScore: data.score,
+          createdAt: data.createdAt ? data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt) : null
+        });
+      });
+
+      const MAX_VALID_SCORE = integralsList.length;
+
+      function isValidScore(raw) {
+        if (raw === null || raw === undefined) return false;
+        if (typeof raw === 'number') {
+          return Number.isInteger(raw) && raw >= 0 && raw < MAX_VALID_SCORE;
+        }
+        const s = String(raw).trim();
+        if (s === '') return false;
+        const num = Number(s.replace(',', '.'));
+        return Number.isFinite(num) && Number.isInteger(num) && num >= 0 && num < MAX_VALID_SCORE;
+      }
+
+      const validEntries = [];
+      const memeEntries = [];
+      for (const e of all) {
+        if (isValidScore(e.rawScore)) {
+          const scoreInt = parseInt(String(e.rawScore).replace(',', '.'), 10);
+          validEntries.push({
+            id: e.id,
+            user: e.user,
+            score: scoreInt,
+            createdAt: e.createdAt
+          });
+        } else {
+          memeEntries.push(e);
+        }
+      }
+
+      const byUser = {};
+      for (const v of validEntries) {
+        if (!byUser[v.user]) {
+          byUser[v.user] = { bestScore: v.score, plays: 1, lastPlay: v.createdAt || new Date(0) };
+        } else {
+          byUser[v.user].plays += 1;
+          if (v.score > byUser[v.user].bestScore) {
+            byUser[v.user].bestScore = v.score;
+          }
+          if (v.createdAt && v.createdAt > byUser[v.user].lastPlay) {
+            byUser[v.user].lastPlay = v.createdAt;
+          }
+        }
+      }
+
+      const rankingArr = Object.keys(byUser).map(user => ({
+        user,
+        bestScore: byUser[user].bestScore,
+        plays: byUser[user].plays,
+        lastPlay: byUser[user].lastPlay
+      })).sort((a, b) => {
+        if (b.bestScore !== a.bestScore) return b.bestScore - a.bestScore;
+        return (b.lastPlay || 0) - (a.lastPlay || 0);
+      });
+
+      const tbody = document.getElementById('rankingBody');
+      tbody.innerHTML = '';
+      const TOP = 10;
+      rankingArr.slice(0, TOP).forEach((r, idx) => {
+        tbody.insertAdjacentHTML('beforeend',
+          `<tr>
+            <td>${r.user}</td>
+            <td>${r.bestScore} <small style="color:var(--secondary)">(${r.plays} jogadas)</small></td>
+          </tr>`
+        );
+      });
+
+      // 2. Mostra a sidebar de memes somente se houver entradas
+      if (memeEntries.length > 0) {
+        memesSidebar.style.display = 'block';
+        memeEntries.sort((a, b) => {
+          const ta = a.createdAt ? a.createdAt.getTime() : 0;
+          const tb = b.createdAt ? b.createdAt.getTime() : 0;
+          return tb - ta;
+        });
+        memesList.innerHTML = '';
+        memeEntries.forEach(m => {
+          const when = m.createdAt ? m.createdAt.toLocaleString() : 'sem data';
+          memesList.insertAdjacentHTML('beforeend',
+            `<div class="memeItem">
+              <strong>${escapeHtml(m.user)}</strong> — ${m.rawScore}
+              <br><small style="color:var(--secondary)">${when}</small>
+            </div>`
           );
         });
-        switchScreen('result','ranking');
-      } catch (e) {
-        console.error('Erro ao buscar ranking:', e);
       }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      switchScreen('result', 'ranking');
+
+    } catch (e) {
+      console.error('Erro ao buscar ranking:', e);
+      alert('Erro ao buscar ranking. Ver console.');
     }
+  }
+
 
     function endGame() {
       clearInterval(timerInterval);
@@ -497,6 +632,8 @@
     document.getElementById('playAgain').onclick = () => {
       document.getElementById('username').value = '';
       switchScreen('ranking','login');
+      const memesSidebar = document.getElementById('memesSidebar');
+      memesSidebar.style.display = 'none';
     };
 
     // Garante que endGame limpa interval se usuário fecha/nenhuma corrida
