@@ -166,9 +166,15 @@
   <!-- LOGIN -->
   <div id="login" class="screen active">
     <h2>Informe seu nome de usuário</h2>
-    <input type="text" id="username" placeholder="Seu nome" />
+    <input 
+      type="text" 
+      id="username" 
+      placeholder="Seu nome (Limite de 20 caracteres)" 
+      maxlength="20"
+    />
     <button id="startBtn">Iniciar Jogo</button>
   </div>
+
 
   <!-- JOGO -->
   <div id="game" class="screen">
@@ -308,17 +314,6 @@
         { q: '∫ 1/sqrt(1-x^2) dx', a: 'arcsen(x)' },
         { q: '∫ -1/sqrt(1-x^2) dx', a: 'arccos(x)' },
         { q: '∫ 1/(1+x^2) dx', a: 'arctg(x)' },
-        { q: '∫ -1/(1+x^2) dx', a: 'arccotg(x)' },
-        { q: '∫ 1/|x|sqrt(x^2-1) dx', a: 'arcsec(x)' },
-        { q: '∫ -1/|x|sqrt(x^2-1) dx', a: 'arccossec(x)' },
-
-        // Hiperbólicas
-        { q: '∫ senh(x) dx', a: 'cosh(x)' },
-        { q: '∫ cosh(x) dx', a: 'senh(x)' },
-        { q: '∫ tgh(x) dx', a: 'ln(cosh(x))' },
-        { q: '∫ coth(x) dx', a: 'ln|senh(x)|' },
-        { q: '∫ sech(x) dx', a: 'arctg(senh(x))' },
-        { q: '∫ cosseh(x) dx', a: 'arctg(cosh(x))' }
     ];
 
     function initPool() {
@@ -420,10 +415,21 @@
         return Number.isFinite(num) && Number.isInteger(num) && num >= 0 && num < MAX_VALID_SCORE;
       }
 
+      function isValidUser(user) {
+        if (!user) return false;
+        const name = String(user).trim();
+        return name.length > 0 && name.length <= 20;
+      }
+
+
       const validEntries = [];
       const memeEntries = [];
+
       for (const e of all) {
-        if (isValidScore(e.rawScore)) {
+        const validScore = isValidScore(e.rawScore);
+        const validUser = isValidUser(e.user);
+
+        if (validScore && validUser) {
           const scoreInt = parseInt(String(e.rawScore).replace(',', '.'), 10);
           validEntries.push({
             id: e.id,
@@ -432,7 +438,9 @@
             createdAt: e.createdAt
           });
         } else {
-          memeEntries.push(e);
+          if(validUser){
+            memeEntries.push(e);
+          }
         }
       }
 
